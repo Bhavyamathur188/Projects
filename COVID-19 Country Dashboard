@@ -1,0 +1,64 @@
+import sys
+import warnings
+import streamlit as st
+import requests
+import pandas as pd
+import plotly.express as px
+
+
+st.set_page_config(layout="centered")
+st.title("🌍 COVID-19 Country Dashboard")
+st.write("Data source: [disease.sh](https://disease.sh/) API")
+
+# --- Fetch countries list
+@st.cache_data
+def get_country_list():
+    url = "https://disease.sh/v3/covid-19/countries"
+    response = requests.get(url)
+    data = response.json()
+    return [country['country'] for country in data]
+
+# --- Fetch COVID data for a specific country
+def get_country_data(country):
+    url = f"https://disease.sh/v3/covid-19/countries/{country}"
+    response = requests.get(url)
+    return response.json()
+
+# --- UI: Country Selector
+countries = get_country_list()
+selected_country = st.selectbox("Select a Country", sorted(countries))
+
+# --- Data display
+data = get_country_data(selected_country)
+
+cases = data.get('cases', 0)
+deaths = data.get('deaths', 0)
+recovered = data.get('recovered', 0)
+active = data.get('active', 0)
+critical = data.get('critical', 0)
+
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("😷 Total Cases", f"{cases:,}")
+    st.metric("💀 Deaths", f"{deaths:,}")
+with col2:
+    st.metric("💚 Recovered", f"{recovered:,}")
+    st.metric("🟡 Active Cases", f"{active:,}")
+
+# --- Pie chart
+chart_data = pd.DataFrame({
+    'Category': ['Recovered', 'Deaths', 'Active'],
+    'Count': [recovered, deaths, active]
+})
+
+fig = px.pie(chart_data, names='Category', values='Count',
+             title=f"COVID-19 Distribution in {selected_country}",
+             color_discrete_sequence=px.colors.qualitative.Set3)
+
+st.plotly_chart(fig)
+
+# --- Additional Details
+with st.expander("🔍 More Details"):
+    st.write(f"🧪 Critical Cases: `{critical}`")
+    st.write(f"📅 Updated: {pd.to_datetime(data['updated'], unit='ms')}")
+    st.image(data.get("countryInfo", {}).get("flag", ""), width=100)
